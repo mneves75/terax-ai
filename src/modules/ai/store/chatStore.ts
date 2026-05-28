@@ -270,6 +270,7 @@ function makeChat(sessionId: string): Chat<UIMessage> {
       usePreferencesStore.getState().openaiCompatibleContextLimit,
     getOpenrouterModelId: () =>
       usePreferencesStore.getState().openrouterModelId,
+    getCodexCliPath: () => usePreferencesStore.getState().codexCliPath,
     onStep: (step) => {
       useChatStore.getState().patchAgentMeta({ step });
     },

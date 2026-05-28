@@ -12,6 +12,17 @@ const STORE_PATH = "terax-ai-sessions.json";
 const KEY_SESSIONS = "sessions";
 const KEY_ACTIVE = "activeId";
 const messagesKey = (id: string) => `messages:${id}`;
+const codexThreadKey = (id: string) => `codexThread:${id}`;
+const codexProcessedApprovalsKey = (id: string) =>
+  `codexProcessedApprovals:${id}`;
+
+type StoredCodexThread =
+  | string
+  | {
+      threadId?: string;
+      scopeKey?: string;
+      updatedAt?: number;
+    };
 
 const store = new LazyStore(STORE_PATH, { defaults: {}, autoSave: 200 });
 
@@ -55,6 +66,52 @@ export async function saveMessages(
 
 export async function deleteSessionData(id: string): Promise<void> {
   await store.delete(messagesKey(id));
+  await store.delete(codexThreadKey(id));
+  await store.delete(codexProcessedApprovalsKey(id));
+}
+
+export async function loadCodexThreadId(
+  id: string,
+  scopeKey?: string,
+): Promise<string | null> {
+  const value = await store.get<StoredCodexThread>(codexThreadKey(id));
+  if (!value) return null;
+  if (typeof value === "string") return scopeKey ? null : value;
+  if (!value.threadId) return null;
+  if (scopeKey && value.scopeKey !== scopeKey) return null;
+  return value.threadId;
+}
+
+export async function saveCodexThreadId(
+  id: string,
+  threadId: string,
+  scopeKey?: string,
+): Promise<void> {
+  await store.set(
+    codexThreadKey(id),
+    scopeKey ? { threadId, scopeKey, updatedAt: Date.now() } : threadId,
+  );
+}
+
+export async function deleteCodexThreadId(id: string): Promise<void> {
+  await store.delete(codexThreadKey(id));
+}
+
+export async function loadCodexProcessedApprovalIds(
+  id: string,
+): Promise<string[]> {
+  return (await store.get<string[]>(codexProcessedApprovalsKey(id))) ?? [];
+}
+
+export async function saveCodexProcessedApprovalId(
+  id: string,
+  approvalId: string,
+): Promise<void> {
+  const key = codexProcessedApprovalsKey(id);
+  const approvalKey = `${id}:${approvalId}`;
+  const current = (await store.get<string[]>(key)) ?? [];
+  if (current.includes(approvalKey)) return;
+  await store.set(key, [...current.slice(-199), approvalKey]);
 }
 
 export function newSessionId(): string {

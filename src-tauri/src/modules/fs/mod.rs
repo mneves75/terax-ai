@@ -2,6 +2,7 @@ pub mod file;
 pub mod grep;
 pub mod mutate;
 pub mod search;
+pub(crate) mod security;
 pub mod tree;
 pub mod watch;
 

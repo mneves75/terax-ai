@@ -4,6 +4,7 @@ import { runAgentStream, type AgentUsageDelta } from "./agent";
 import type { ProviderKeys } from "./keyring";
 import { native } from "./native";
 import type { ToolContext } from "../tools/tools";
+import { createCodexTransport } from "./codexTransport";
 
 const TERAX_MD_MAX_BYTES = 32 * 1024;
 type MemoryCacheEntry = { content: string | null; mtime: number };
@@ -56,6 +57,7 @@ type Deps = {
   getOpenaiCompatibleModelId?: () => string | undefined;
   getOpenaiCompatibleContextLimit?: () => number | undefined;
   getOpenrouterModelId?: () => string | undefined;
+  getCodexCliPath?: () => string | undefined;
   onStep?: (step: string | null) => void;
   onUsage?: (delta: AgentUsageDelta) => void;
   onCompact?: (info: { droppedCount: number }) => void;
@@ -72,6 +74,20 @@ type SendOptions = {
 export function createContextAwareTransport(deps: Deps) {
   const run = async (options: SendOptions) => {
     const live = deps.getLive();
+    if (deps.getModelId() === "codex-cli") {
+      const codexTransport = createCodexTransport({
+        getLive: deps.getLive,
+        getCliPath: () => deps.getCodexCliPath?.(),
+        onStep: deps.onStep,
+      });
+      return codexTransport.sendMessages({
+        trigger: "submit-message",
+        chatId: String(options.chatId ?? deps.toolContext.getSessionId()),
+        messageId: undefined,
+        messages: options.messages,
+        abortSignal: options.abortSignal,
+      });
+    }
     const projectMemory = await readTeraxMd(live.workspaceRoot);
     const envBlock = formatEnvBlock(live);
     const messagesForRun = envBlock

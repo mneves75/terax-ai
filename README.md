@@ -78,6 +78,7 @@ Terax is a lightweight open-source terminal (ADE) built on Tauri 2 + Rust and Re
 
 - **BYOK providers:** OpenAI, Anthropic, Google (Gemini), Groq, xAI (Grok), Cerebras, OpenRouter, DeepSeek, Mistral, plus any OpenAI-compatible endpoint
 - **Local / offline:** LM Studio, MLX, Ollama
+- **Host Codex:** optional Codex CLI provider that talks to the local `codex app-server` and uses your host Codex configuration
 - **Agentic workflow:** plans, sub-agents, project memory via `TERAX.md`, file read / write / edit / multi-edit / grep / glob, bash with approval gating, background processes
 - **Composer:** snippets via `#handle`, files via `@path`, slash commands, voice input, attach-to-agent from explorer or selection
 - **Custom agents** with their own system prompt and tool subset
@@ -104,6 +105,12 @@ Latest installers are on the [Releases](https://github.com/crynta/terax-ai/relea
 2. Pick a provider and paste your API key. For local inference, point Terax at your LM Studio / MLX / Ollama endpoint.
 3. Keys are written to the OS keychain via `keyring`. They never touch disk or localStorage.
 
+### Codex CLI provider
+
+Terax can use your host Codex CLI instead of a Terax-managed model key. Install a Codex CLI build that supports `codex app-server`, then select **Codex CLI** in **Settings -> AI**. Terax auto-detects `codex` from common shell paths, or you can set an explicit CLI path.
+
+The integration is macOS/Linux only in this release and requires Codex CLI `0.134.0` or newer. Backend calls are scoped to the authorized workspace root and use the Codex `:workspace` permission profile.
+
 ## Build from source
 
 **Prerequisites**
@@ -121,7 +128,10 @@ pnpm tauri build        # production bundle
 **Checks**
 ```bash
 pnpm exec tsc --noEmit          # frontend type-check
+pnpm test                       # frontend unit tests
+pnpm test:e2e:codex             # Codex app-server integration smoke
 cd src-tauri && cargo clippy    # Rust lint
+cd src-tauri && cargo test      # Rust tests
 ```
 
 ## Tech stack

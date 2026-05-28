@@ -13,7 +13,8 @@ export type ProviderId =
   | "openai-compatible"
   | "lmstudio"
   | "mlx"
-  | "ollama";
+  | "ollama"
+  | "codex";
 
 export type ProviderInfo = {
   id: ProviderId;
@@ -117,6 +118,13 @@ export const PROVIDERS: readonly ProviderInfo[] = [
     keyringAccount: "",
     keyPrefix: null,
     consoleUrl: "https://ollama.com/download",
+  },
+  {
+    id: "codex",
+    label: "Codex CLI",
+    keyringAccount: "",
+    keyPrefix: null,
+    consoleUrl: "https://github.com/openai/codex/tree/main/codex-rs/app-server",
   },
 ] as const;
 
@@ -485,6 +493,15 @@ export const MODELS = [
     description: "Local models via Ollama.",
     capabilities: { intelligence: 3, speed: 3, cost: 5 },
   },
+  {
+    id: "codex-cli",
+    provider: "codex",
+    label: "Codex CLI",
+    hint: "Host",
+    description: "Uses your local Codex CLI app-server.",
+    capabilities: { intelligence: 4, speed: 3, cost: 3 },
+    tags: ["tools", "coding"],
+  },
 ] as const satisfies readonly ModelInfo[];
 
 export type ModelId = (typeof MODELS)[number]["id"];
@@ -505,6 +522,7 @@ const FREEFORM_PROVIDERS: ReadonlySet<ProviderId> = new Set([
   "lmstudio",
   "mlx",
   "ollama",
+  "codex",
 ]);
 
 // Reasoning models reject tool-call turns whose reasoning was stripped; keep it.
@@ -551,6 +569,7 @@ export const MODEL_CONTEXT_LIMITS: Record<string, number> = {
   "lmstudio-local": 32_000,
   "mlx-local": 32_000,
   "ollama-local": 32_000,
+  "codex-cli": 400_000,
   "mistral-large-latest": 131_072,
   "mistral-medium-latest": 32_768,
   "codestral-latest": 256_000,
@@ -617,6 +636,7 @@ export const KEYLESS_PROVIDERS: readonly ProviderId[] = [
   "mlx",
   "ollama",
   "openai-compatible",
+  "codex",
 ] as const;
 
 export function providerNeedsKey(id: ProviderId): boolean {
@@ -652,7 +672,10 @@ export const DEFAULT_AUTOCOMPLETE_MODEL: Partial<Record<ProviderId, string>> = {
 /** Curated list of fast models suitable for inline completion (speed ≥ 4). */
 export function getAutocompleteEligibleModels(): readonly ModelInfo[] {
   return MODELS.filter(
-    (m) => m.capabilities.speed >= 4 && m.id !== "openai-compatible-custom",
+    (m) =>
+      m.provider !== "codex" &&
+      m.capabilities.speed >= 4 &&
+      m.id !== "openai-compatible-custom",
   );
 }
 

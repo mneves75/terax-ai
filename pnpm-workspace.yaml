@@ -1,3 +1,7 @@
 allowBuilds:
   esbuild: true
   msw: true
+
+overrides:
+  mermaid: ^11.15.0
+  uuid: ^11.1.1

@@ -18,7 +18,11 @@ import { listBuiltinThemes } from "@/modules/theme/themes";
 import { validateTheme } from "@/modules/theme/validateTheme";
 import { deleteThemeFile, emitThemeEdit } from "@/modules/theme/themeFiles";
 import { DEFAULT_THEME_ID } from "@/modules/theme/types";
-import { Edit02Icon, PlusSignIcon } from "@hugeicons/core-free-icons";
+import {
+  Cancel01Icon,
+  Edit02Icon,
+  PlusSignIcon,
+} from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useMemo, useRef, useState } from "react";
@@ -183,48 +187,50 @@ export function ThemesSection() {
             const selected = themeId === t.id;
             const isCustom = customIds.has(t.id);
             return (
-              <button
-                key={t.id}
-                type="button"
-                onClick={() => setThemeId(t.id)}
-                className={cn(
-                  "group flex items-center gap-3 rounded-lg border p-2.5 text-left transition-all",
-                  selected
-                    ? "border-foreground/60 ring-1 ring-foreground/20"
-                    : "border-border/60 hover:border-border",
-                )}
-              >
-                <div
-                  className="flex h-10 w-14 shrink-0 items-center justify-center gap-1 rounded-md border border-border/40"
-                  style={{ background: swatchBg }}
+              <div key={t.id} className="group relative">
+                <button
+                  type="button"
+                  onClick={() => setThemeId(t.id)}
+                  className={cn(
+                    "flex w-full items-center gap-3 rounded-lg border p-2.5 text-left transition-all",
+                    isCustom && "pr-16",
+                    selected
+                      ? "border-foreground/60 ring-1 ring-foreground/20"
+                      : "border-border/60 hover:border-border",
+                  )}
                 >
-                  <span
-                    className="h-5 w-2 rounded-sm"
-                    style={{ background: swatchAccent }}
-                  />
-                  <span
-                    className="h-5 w-2 rounded-sm"
-                    style={{ background: swatchFg, opacity: 0.7 }}
-                  />
-                  <span
-                    className="h-5 w-2 rounded-sm"
-                    style={{ background: swatchMuted }}
-                  />
-                </div>
-                <div className="flex min-w-0 flex-1 flex-col">
-                  <span className="truncate text-[12.5px] font-medium">
-                    {t.name}
-                  </span>
-                  {t.description ? (
-                    <span className="truncate text-[11px] text-muted-foreground">
-                      {t.description}
-                    </span>
-                  ) : null}
-                </div>
-                {isCustom ? (
-                  <span className="ml-1 flex shrink-0 items-center gap-0.5 opacity-0 transition group-hover:opacity-100">
+                  <div
+                    className="flex h-10 w-14 shrink-0 items-center justify-center gap-1 rounded-md border border-border/40"
+                    style={{ background: swatchBg }}
+                  >
                     <span
-                      role="button"
+                      className="h-5 w-2 rounded-sm"
+                      style={{ background: swatchAccent }}
+                    />
+                    <span
+                      className="h-5 w-2 rounded-sm"
+                      style={{ background: swatchFg, opacity: 0.7 }}
+                    />
+                    <span
+                      className="h-5 w-2 rounded-sm"
+                      style={{ background: swatchMuted }}
+                    />
+                  </div>
+                  <div className="flex min-w-0 flex-1 flex-col">
+                    <span className="truncate text-[12.5px] font-medium">
+                      {t.name}
+                    </span>
+                    {t.description ? (
+                      <span className="truncate text-[11px] text-muted-foreground">
+                        {t.description}
+                      </span>
+                    ) : null}
+                  </div>
+                </button>
+                {isCustom ? (
+                  <div className="absolute top-1/2 right-2 flex -translate-y-1/2 items-center gap-0.5 opacity-0 transition group-focus-within:opacity-100 group-hover:opacity-100">
+                    <button
+                      type="button"
                       aria-label={`Edit ${t.name}`}
                       className="inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
                       onClick={(e) => {
@@ -233,9 +239,9 @@ export function ThemesSection() {
                       }}
                     >
                       <HugeiconsIcon icon={Edit02Icon} size={12} strokeWidth={1.75} />
-                    </span>
-                    <span
-                      role="button"
+                    </button>
+                    <button
+                      type="button"
                       aria-label={`Remove ${t.name}`}
                       className="inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-destructive"
                       onClick={(e) => {
@@ -243,11 +249,15 @@ export function ThemesSection() {
                         void onRemoveCustomTheme(t.id);
                       }}
                     >
-                      ×
-                    </span>
-                  </span>
+                      <HugeiconsIcon
+                        icon={Cancel01Icon}
+                        size={12}
+                        strokeWidth={1.75}
+                      />
+                    </button>
+                  </div>
                 ) : null}
-              </button>
+              </div>
             );
           })}
         </div>

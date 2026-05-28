@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { Channel, invoke } from "@tauri-apps/api/core";
 import { currentWorkspaceEnv } from "@/modules/workspace";
 
 export type ReadResult =
@@ -121,6 +121,57 @@ export type GitPanelSnapshot = {
 export type GitDiscardEntry = {
   path: string;
   untracked: boolean;
+};
+
+export type CodexStatus = {
+  supported: boolean;
+  cliAvailable: boolean;
+  cliVersionSupported: boolean;
+  cliPath: string;
+  cliVersion: string | null;
+  minCliVersion: string;
+  daemonRunning: boolean;
+  error: string | null;
+};
+
+export type CodexAppServerEvent =
+  | { kind: "agent_delta"; delta: string }
+  | { kind: "plan_updated"; text: string }
+  | { kind: "item_started"; item: unknown }
+  | { kind: "item_completed"; item: unknown }
+  | {
+      kind: "approval_request";
+      requestId: number;
+      method: string;
+      params: unknown;
+    }
+  | { kind: "turn_completed"; turn: unknown }
+  | { kind: "error"; message: string }
+  | { kind: "status"; message: string };
+
+export type CodexRunResult =
+  | { status: "completed"; threadId: string }
+  | {
+      status: "awaiting_approval";
+      threadId: string;
+      turnId: string | null;
+      requestId: number;
+    };
+
+export type CodexStartTurnParams = {
+  sessionId: string;
+  threadId?: string | null;
+  cwd?: string | null;
+  workspaceRoots: string[];
+  workspace?: ReturnType<typeof currentWorkspaceEnv>;
+  prompt: string;
+  cliPath?: string | null;
+};
+
+export type CodexApprovalParams = {
+  sessionId: string;
+  requestId: number;
+  approved: boolean;
 };
 
 export const native = {
@@ -356,5 +407,35 @@ export const native = {
       repoRoot,
       name: name ?? null,
       workspace: currentWorkspaceEnv(),
+    }),
+  codexStatus: (cliPath?: string | null) =>
+    invoke<CodexStatus>("codex_app_server_status", {
+      cliPath: cliPath ?? null,
+    }),
+  codexStartTurn: (
+    params: CodexStartTurnParams,
+    onEvent: (event: CodexAppServerEvent) => void,
+  ) => {
+    const channel = new Channel<CodexAppServerEvent>();
+    channel.onmessage = onEvent;
+    return invoke<CodexRunResult>("codex_app_server_start_turn", {
+      params,
+      onEvent: channel,
+    });
+  },
+  codexRespondApproval: (
+    params: CodexApprovalParams,
+    onEvent: (event: CodexAppServerEvent) => void,
+  ) => {
+    const channel = new Channel<CodexAppServerEvent>();
+    channel.onmessage = onEvent;
+    return invoke<CodexRunResult>("codex_app_server_respond_approval", {
+      params,
+      onEvent: channel,
+    });
+  },
+  codexInterrupt: (sessionId: string) =>
+    invoke<void>("codex_app_server_interrupt", {
+      params: { sessionId },
     }),
 };

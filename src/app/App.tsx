@@ -25,7 +25,6 @@ import {
   AiInputBarConnect,
   AiMiniWindow,
   getAllKeys,
-  hasAnyKey,
   LocalAgentNotificationsBridge,
   SelectionAskAi,
   useChatStore,
@@ -33,6 +32,7 @@ import {
 import { AiComposerProvider } from "@/modules/ai/lib/composer";
 import { redactSensitive } from "@/modules/ai/lib/redact";
 import { native } from "@/modules/ai/lib/native";
+import { hasUsableChatProvider } from "@/modules/ai/lib/providerAvailability";
 import { useAgentsStore } from "@/modules/ai/store/agentsStore";
 import { useSnippetsStore } from "@/modules/ai/store/snippetsStore";
 import {
@@ -393,6 +393,7 @@ export default function App() {
   const panelOpen = useChatStore((s) => s.panelOpen);
   const apiKeys = useChatStore((s) => s.apiKeys);
   const setApiKeys = useChatStore((s) => s.setApiKeys);
+  const selectedModelId = useChatStore((s) => s.selectedModelId);
   const setSelectedModelId = useChatStore((s) => s.setSelectedModelId);
   const setLive = useChatStore((s) => s.setLive);
   const respondToApproval = useChatStore((s) => s.respondToApproval);
@@ -418,7 +419,11 @@ export default function App() {
     (ollamaBaseURL.trim().length > 0 && ollamaModelId.trim().length > 0) ||
     (openaiCompatibleBaseURL.trim().length > 0 &&
       openaiCompatibleModelId.trim().length > 0);
-  const hasComposer = hasAnyKey(apiKeys) || hasLocalModel;
+  const hasComposer = hasUsableChatProvider(
+    apiKeys,
+    hasLocalModel,
+    selectedModelId,
+  );
 
   const [keysLoaded, setKeysLoaded] = useState(false);
   useEffect(() => {

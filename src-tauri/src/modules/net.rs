@@ -148,9 +148,14 @@ async fn classify_and_collect_safe_ips(
     let (worst, ips) = resolve_and_classify(host).await?;
     match worst {
         IpKind::BlockedMetadata => return Err(format!("host not allowed: {host}")),
-        IpKind::Loopback | IpKind::Private if !allow_private => {
+        IpKind::Loopback if !allow_private => {
             return Err(format!(
-                "host {host} resolves to a private/loopback address; this endpoint requires explicit opt-in",
+                "host {host} resolves to a loopback address; this endpoint requires explicit opt-in",
+            ));
+        }
+        IpKind::Private => {
+            return Err(format!(
+                "host {host} resolves to a private network address; only loopback endpoints are allowed",
             ));
         }
         _ => {}
@@ -159,7 +164,8 @@ async fn classify_and_collect_safe_ips(
         .into_iter()
         .filter(|ip| match ip_kind(*ip) {
             IpKind::BlockedMetadata => false,
-            IpKind::Loopback | IpKind::Private => allow_private,
+            IpKind::Loopback => allow_private,
+            IpKind::Private => false,
             IpKind::Public => true,
         })
         .collect();
@@ -246,8 +252,7 @@ fn build_safe_client(
     allow_private: bool,
     pinned: &[(String, Vec<IpAddr>)],
 ) -> Result<reqwest::Client, String> {
-    let mut builder = reqwest::Client::builder()
-        .connect_timeout(Duration::from_secs(10));
+    let mut builder = reqwest::Client::builder().connect_timeout(Duration::from_secs(10));
     // Pin reqwest's resolver to the IPs we just classified. Without this,
     // reqwest's own DNS lookup could return a different (private/metadata) IP
     // for the same hostname between classify and connect — classic DNS
@@ -283,7 +288,10 @@ fn build_safe_client(
                 if k == IpKind::BlockedMetadata {
                     return attempt.stop();
                 }
-                if !allow_private && matches!(k, IpKind::Loopback | IpKind::Private) {
+                if k == IpKind::Private {
+                    return attempt.stop();
+                }
+                if !allow_private && k == IpKind::Loopback {
                     return attempt.stop();
                 }
             } else if !allow_private {
@@ -457,10 +465,7 @@ mod tests {
             IpKind::BlockedMetadata
         );
         // IPv6 link-local fe80::/10
-        assert_eq!(
-            ip_kind("fe80::1".parse().unwrap()),
-            IpKind::BlockedMetadata
-        );
+        assert_eq!(ip_kind("fe80::1".parse().unwrap()), IpKind::BlockedMetadata);
     }
 
     #[test]

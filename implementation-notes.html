@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Terax Review Implementation Notes</title>
+    <style>
+      body {
+        font: 14px/1.5 sans-serif;
+        margin: 32px;
+        max-width: 1040px;
+        color: #1f2937;
+      }
+      h1,
+      h2 {
+        line-height: 1.2;
+      }
+      code {
+        background: #f3f4f6;
+        border-radius: 4px;
+        padding: 0.1rem 0.25rem;
+      }
+      .status {
+        border-left: 4px solid #2563eb;
+        padding-left: 12px;
+      }
+      .risk {
+        border-left-color: #b45309;
+      }
+      .ok {
+        border-left-color: #047857;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Terax Review Implementation Notes</h1>
+    <p>
+      Live notes for the full frontend UI/UX and source-code review requested on
+      2026-05-27. This file records decisions, tradeoffs, deviations, risks, and
+      validation evidence as the work progresses.
+    </p>
+
+    <h2>Scope Lock</h2>
+    <ul>
+      <li>Repo root: <code>/Users/mneves/dev/terax-ai</code>.</li>
+      <li>Branch: <code>main</code>.</li>
+      <li>Package manager: <code>pnpm 11.1.3</code>.</li>
+      <li>Runtime/toolchain: <code>node v24.15.0</code>, <code>rustc 1.95.0</code>, <code>cargo 1.95.0</code>.</li>
+      <li>Remote: <code>origin https://github.com/mneves75/terax-ai.git</code>.</li>
+      <li>Repo instructions: <code>AGENTS.md</code> and <code>CLAUDE.md</code> point to <code>TERAX.md</code>; user-provided AGENTS.md instructions are active for this run.</li>
+      <li>Architecture: Tauri 2 + Rust backend, React 19 + TypeScript frontend, Vite, Tailwind v4, Radix/shadcn UI, CodeMirror, xterm.js, AI SDK v6, Zustand.</li>
+    </ul>
+
+    <h2>Skill And Tooling Notes</h2>
+    <ul>
+      <li>Loaded requested skills: <code>modern-web-guidance</code>, <code>frontend-design</code>, <code>design-review</code>, <code>code-review</code>, and <code>security-best-practices</code>.</li>
+      <li>Modern web guidance retrieved current accessibility, CSS architecture, deferred rendering, and accessible error announcement guidance.</li>
+      <li>Claude Code is installed and non-interactive authentication was verified with <code>claude -p</code>.</li>
+      <li>Design-review skill normally requires a clean tree and one commit per visual fix. Deviation: this run has existing requested implementation work in progress and the user requested one end-to-end autonomous workflow with final Lore commit, so fixes will be grouped into the final commit unless a destructive rollback is required.</li>
+    </ul>
+
+    <h2>Initial Known State</h2>
+    <ul>
+      <li>Dirty worktree includes the Codex CLI app-server provider feature and a mechanical Rust formatting pass from the previous verification lane.</li>
+      <li>Previous verification before this review passed TypeScript, Vitest, Rust tests, clippy, Codex E2E, and a debug Tauri build path; full updater signing remained blocked by missing <code>TAURI_SIGNING_PRIVATE_KEY</code>.</li>
+      <li>No project-specific memory entry was found for <code>terax</code>; memory used only for general user preferences around broad fix-plus-verify work.</li>
+    </ul>
+
+    <h2>Open Review Milestones</h2>
+    <ol>
+      <li>Run independent source-code, architecture, security, and design review lanes.</li>
+      <li>Implement critical/high fixes first; do not proceed past a milestone with unresolved critical/high findings.</li>
+      <li>Fix justified medium findings or document why they are deferred.</li>
+      <li>Run strongest applicable verification: typecheck, tests, Rust clippy/tests, build, Codex E2E, packaging, and browser/UI smoke.</li>
+      <li>Update docs, final status, commit with Lore protocol, and push if credentials permit.</li>
+    </ol>
+
+    <h2>Validation Evidence</h2>
+    <div class="status">
+      <p><strong>Milestone 1 review findings and fixes, 2026-05-27.</strong></p>
+      <ul>
+        <li>Claude Code design review found no critical UI issues and two high Codex provider UX issues: unverified <code>Connected</code> state and a remove affordance that did not remove.</li>
+        <li>Architecture/security reviewers blocked the Codex provider until workspace roots, permissions, stale approvals, and interrupt behavior were tightened.</li>
+        <li>Implemented Codex workspace canonicalization against <code>WorkspaceRegistry</code>, <code>:workspace</code> permission profile forwarding, file-permission clamping for Codex approval responses, CLI version gating, stale approval persistence, and an out-of-band interrupt path using a fresh app-server control connection.</li>
+        <li>Hardened backend filesystem IPC with canonical workspace checks and sensitive-path deny rules for read/write/create/rename/delete/stat/canonicalize.</li>
+        <li>Added backend shell command guardrails for destructive patterns and tightened private-network proxy behavior to allow loopback endpoints but reject arbitrary RFC1918 destinations.</li>
+        <li>Updated dependency policy with <code>pnpm-workspace.yaml</code> overrides for patched <code>mermaid</code> and <code>uuid</code> transitive versions.</li>
+        <li>Fixed UI accessibility issues by replacing nested <code>role="button"</code> controls in tabs and custom theme cards with real sibling buttons.</li>
+      </ul>
+    </div>
+    <ul>
+      <li><code>./node_modules/.bin/tsc --noEmit</code>: passed.</li>
+      <li><code>pnpm test -- --run src/modules/ai/lib/codexTransport.test.ts src/modules/ai/lib/providerAvailability.test.ts</code>: passed, 8 files / 83 tests because Vitest still discovered the existing suite under the provided invocation.</li>
+      <li><code>cargo fmt --check</code>: passed after formatting.</li>
+      <li><code>cargo test --locked --all-features codex -- --nocapture</code>: passed, 11 targeted Codex tests.</li>
+      <li><code>cargo test --locked --all-features shell_guard -- --nocapture</code>: passed.</li>
+      <li><code>cargo test --locked --all-features read_file_rejects</code>, <code>mutate_rejects</code>, and <code>blocks_sensitive</code>: passed.</li>
+      <li><code>pnpm audit --prod --audit-level moderate</code>: passed with no known vulnerabilities after overrides.</li>
+    </ul>
+
+    <h2>Open Questions And Risks</h2>
+    <ul>
+      <li>Full signed/updater bundle likely requires <code>TAURI_SIGNING_PRIVATE_KEY</code>; local unsigned/debug verification is the next-best check if signing remains unavailable.</li>
+      <li>Browser-only Vite smoke may not exercise all Tauri IPC paths; native app smoke remains required for user-visible Tauri integration.</li>
+      <li>Private RFC1918 model endpoints are now rejected by the backend proxy; loopback local model endpoints remain supported. This is a security tradeoff to avoid renderer-controlled LAN SSRF.</li>
+    </ul>
+
+    <h2>Final Decisions And Tradeoffs</h2>
+    <ul>
+      <li>Kept the Codex provider keyless because host Codex owns authentication and model configuration. Terax now verifies CLI availability/version before presenting it as connected.</li>
+      <li>Scoped Codex sessions by workspace root, cwd, workspace environment, and CLI path so a persisted Codex thread is not reused after the workspace/CLI changes.</li>
+      <li>Kept backend file and shell authorization in Rust, not only in the renderer. Renderer approval remains UX state; backend workspace checks are the enforcement boundary.</li>
+      <li>Allowed multi-line shell snippets while blocking recursive root/home deletes, disk-formatting patterns, Unicode bidi overrides, and pipe-to-shell install patterns.</li>
+      <li>Rejected renderer-controlled access to arbitrary private network addresses in <code>ai_http_stream</code>. Local model loopback endpoints remain allowed with opt-in.</li>
+      <li>Ignored local runtime artifacts <code>.omc/</code> and <code>.playwright-mcp/</code> through <code>.gitignore</code>; they are not part of the product diff.</li>
+    </ul>
+
+    <h2>Final Validation Evidence</h2>
+    <div class="status ok">
+      <p><strong>Fresh final pass, 2026-05-27.</strong></p>
+      <ul>
+        <li><code>./node_modules/.bin/tsc --noEmit</code>: passed.</li>
+        <li><code>pnpm test</code>: passed, 8 files / 84 tests.</li>
+        <li><code>pnpm build</code>: passed; Vite production build completed.</li>
+        <li><code>pnpm audit --prod --audit-level moderate</code>: passed with no known vulnerabilities.</li>
+        <li><code>cargo fmt --check &amp;&amp; cargo clippy --locked --all-targets --all-features -- -D warnings</code>: passed.</li>
+        <li><code>cargo test --locked --all-features</code>: passed, 138 lib tests, 23 fs search tests, 25 git operation tests, 7 shell background tests, 0 doctests.</li>
+        <li><code>TERAX_CODEX_E2E_TIMEOUT_MS=180000 pnpm test:e2e:codex</code>: passed and returned <code>TERAX_E2E_OK</code>.</li>
+        <li>Timed Codex E2E: <code>timeToFirstDeltaMs=10421</code>, <code>timeToCompletedMs=10759</code>, shell wall time <code>real 14.16s</code>. The integration works, but first-answer latency is still material and appears dominated by Codex app-server MCP/hook startup events before the first assistant delta.</li>
+        <li><code>pnpm tauri build --debug --no-bundle</code>: passed and built <code>src-tauri/target/debug/terax</code>.</li>
+        <li><code>pnpm tauri build --debug</code>: built <code>Terax.app</code>, <code>Terax_0.7.3_aarch64.dmg</code>, and updater tarball, then failed signing because <code>TAURI_SIGNING_PRIVATE_KEY</code> is not set.</li>
+        <li>Browser smoke through Playwright + mocked Tauri IPC passed for desktop Codex-available and mobile Codex-missing settings states. Screenshots: <code>/tmp/terax-settings-models-desktop-codex-ok.png</code> and <code>/tmp/terax-settings-models-mobile-codex-missing.png</code>.</li>
+        <li>Browser smoke evidence: desktop connected badges <code>1</code>, mobile connected badges <code>0</code>, nested interactive controls <code>0</code>, role-button fallbacks <code>0</code>.</li>
+        <li><code>git diff --check</code>: passed.</li>
+      </ul>
+    </div>
+
+    <h2>Review Blockers And Residual Risks</h2>
+    <ul>
+      <li><code>codex-bypass</code>: unavailable on <code>PATH</code>; requested post-implementation codex-bypass review could not run.</li>
+      <li>Codex native post-fix review subagent: blocked by Codex usage limit during this run. Earlier pre-fix architecture/security/design reviewers produced the critical/high findings that were fixed.</li>
+      <li>Claude Code read-only final review: installed/authenticated, but the post-fix review command hung without output for more than two minutes and was terminated. Treat this as an external-review blocker, not a clean Claude sign-off.</li>
+      <li><code>cargo audit --deny warnings</code>: failed on 19 RustSec warnings from transitive Tauri/Wry GTK/urlpattern stack dependencies, including unmaintained GTK3 bindings and unsound advisories in <code>glib</code>/<code>rand</code>. No new direct dependency advisory was found for <code>tungstenite</code>.</li>
+      <li>Codex first-delta latency remains a known UX risk. The app now surfaces step/status updates immediately, but host Codex app-server startup still delays first assistant text in the measured E2E.</li>
+    </ul>
+  </body>
+</html>

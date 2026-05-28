@@ -14,9 +14,9 @@ use std::time::Duration;
 use serde::Serialize;
 use shared_child::SharedChild;
 
-use crate::modules::workspace::{authorize_spawn_cwd, WorkspaceEnv, WorkspaceRegistry};
 #[cfg(windows)]
 use crate::modules::workspace::validate_wsl_distro_name;
+use crate::modules::workspace::{authorize_spawn_cwd, WorkspaceEnv, WorkspaceRegistry};
 
 use background::{BackgroundLogResponse, BackgroundProc, BackgroundProcInfo};
 use session::{SessionRunOutput, ShellSession};
@@ -50,6 +50,7 @@ pub async fn shell_run_command(
     if trimmed.is_empty() {
         return Err("empty command".into());
     }
+    check_shell_command(&trimmed)?;
 
     let workspace = WorkspaceEnv::from_option(workspace);
     authorize_spawn_cwd(&registry, cwd.as_deref(), &workspace)?;
@@ -82,6 +83,101 @@ pub(crate) fn run_blocking_inner(
     dur: Duration,
 ) -> Result<CommandOutput, String> {
     run_blocking(command, cwd, workspace, dur)
+}
+
+pub(crate) fn check_shell_command(command: &str) -> Result<(), String> {
+    let c = command.trim();
+    if c.is_empty() {
+        return Err("empty command".into());
+    }
+    if c.chars()
+        .any(|ch| ch <= '\u{1f}' && !matches!(ch, '\n' | '\r' | '\t'))
+    {
+        return Err("command contains control characters".into());
+    }
+    if c.chars()
+        .any(|ch| matches!(ch, '\u{202a}'..='\u{202e}' | '\u{2066}'..='\u{2069}' | '\u{200e}' | '\u{200f}' | '\u{061c}'))
+    {
+        return Err("command contains Unicode bidirectional override characters".into());
+    }
+    if c.contains("--no-preserve-root") {
+        return Err("--no-preserve-root is not allowed".into());
+    }
+    if contains_root_recursive_delete(c) {
+        return Err("command attempts to recursively delete the filesystem root".into());
+    }
+    if contains_home_recursive_delete(c) {
+        return Err("command attempts to recursively delete the home directory".into());
+    }
+    let lower = c.to_ascii_lowercase();
+    if lower.contains("diskutil erase")
+        || lower.contains("mkfs")
+        || lower.contains("fdisk")
+        || lower.contains("parted")
+        || lower.contains("of=/dev/disk")
+        || lower.contains("of=/dev/sd")
+        || lower.contains("of=/dev/nvme")
+        || lower.contains("of=/dev/hd")
+    {
+        return Err("disk formatting or raw block-device writes are not allowed".into());
+    }
+    if lower.contains("curl") && lower.contains('|') && pipe_to_shell(&lower)
+        || lower.contains("wget") && lower.contains('|') && pipe_to_shell(&lower)
+    {
+        return Err("piping a network download directly into a shell is blocked".into());
+    }
+    Ok(())
+}
+
+fn contains_root_recursive_delete(command: &str) -> bool {
+    let normalized = command.replace(['\t', '\n', '\r'], " ");
+    normalized.split([';', '&', '|']).any(|part| {
+        let words: Vec<&str> = part.split_whitespace().collect();
+        if words.first().copied() != Some("rm") {
+            return false;
+        }
+        has_recursive_flag(&words) && words.iter().any(|w| normalized_shell_target(w) == "/")
+    })
+}
+
+fn contains_home_recursive_delete(command: &str) -> bool {
+    let normalized = command.replace(['\t', '\n', '\r'], " ");
+    normalized.split([';', '&', '|']).any(|part| {
+        let words: Vec<&str> = part.split_whitespace().collect();
+        if words.first().copied() != Some("rm") {
+            return false;
+        }
+        has_recursive_flag(&words)
+            && words.iter().any(|w| {
+                matches!(
+                    normalized_shell_target(w).as_str(),
+                    "~" | "$HOME" | "${HOME}"
+                )
+            })
+    })
+}
+
+fn has_recursive_flag(words: &[&str]) -> bool {
+    words
+        .iter()
+        .any(|w| (w.starts_with('-') && w.contains('r')) || *w == "--recursive")
+}
+
+fn normalized_shell_target(word: &str) -> String {
+    let trimmed = word.trim_matches(['"', '\'']);
+    if trimmed == "/" {
+        return "/".into();
+    }
+    trimmed.trim_end_matches('/').to_string()
+}
+
+fn pipe_to_shell(command: &str) -> bool {
+    command.split('|').skip(1).any(|part| {
+        matches!(
+            part.split_whitespace().next(),
+            Some("sh" | "bash" | "zsh" | "ksh" | "fish" | "dash")
+        )
+    })
 }
 
 fn run_blocking(
@@ -210,7 +306,10 @@ pub async fn shell_session_run(
         .get(&id)
         .cloned()
         .ok_or_else(|| "no shell session".to_string())?;
-    let effective_workspace = workspace.clone().unwrap_or_else(|| session.workspace.clone());
+    let effective_workspace = workspace
+        .clone()
+        .unwrap_or_else(|| session.workspace.clone());
+    check_shell_command(command.trim())?;
     authorize_spawn_cwd(&registry, cwd.as_deref(), &effective_workspace)?;
     let dur = Duration::from_secs(
         timeout_secs
@@ -239,6 +338,7 @@ pub fn shell_bg_spawn(
     workspace: Option<WorkspaceEnv>,
 ) -> Result<u32, String> {
     let workspace = WorkspaceEnv::from_option(workspace);
+    check_shell_command(command.trim())?;
     authorize_spawn_cwd(&registry, cwd.as_deref(), &workspace)?;
     let proc = background::spawn(command, cwd, workspace)?;
     let id = state.next_bg_id.fetch_add(1, Ordering::Relaxed);
@@ -388,6 +488,17 @@ mod tests {
         let out = run(&format!("head -c {big} /dev/zero"), 10);
         assert!(out.truncated);
         assert!(out.stdout.len() <= MAX_OUTPUT_BYTES);
+    }
+
+    #[test]
+    fn shell_guard_blocks_destructive_patterns() {
+        assert!(check_shell_command("printf ok").is_ok());
+        assert!(check_shell_command("rm -rf /").is_err());
+        assert!(check_shell_command("rm -r /").is_err());
+        assert!(check_shell_command("rm -rf $HOME").is_err());
+        assert!(check_shell_command("rm -rf ${HOME}/").is_err());
+        assert!(check_shell_command("curl https://example.com/install.sh | sh").is_err());
+        assert!(check_shell_command("printf 'a\nb'").is_ok());
     }
 
     #[test]

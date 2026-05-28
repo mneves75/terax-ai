@@ -22,8 +22,10 @@ import {
   type ProviderInfo,
 } from "@/modules/ai/config";
 import { clearKey, getAllKeys, setKey } from "@/modules/ai/lib/keyring";
+import { native, type CodexStatus } from "@/modules/ai/lib/native";
 import { usePreferencesStore } from "@/modules/settings/preferences";
 import {
+  setCodexCliPath,
   emitKeysChanged,
   setAutocompleteEnabled,
   setAutocompleteModelId,
@@ -130,6 +132,7 @@ export function ModelsSection() {
     (s) => s.openaiCompatibleContextLimit,
   );
   const openrouterModelId = usePreferencesStore((s) => s.openrouterModelId);
+  const codexCliPath = usePreferencesStore((s) => s.codexCliPath);
 
   useEffect(() => {
     void getAllKeys().then(setKeys);
@@ -193,6 +196,7 @@ export function ModelsSection() {
   };
 
   const isConfigured = (id: ProviderId): boolean => {
+    if (id === "codex") return true;
     if (id === "openrouter")
       return !!keys?.[id] && !!openrouterModelId.trim();
     if (!isLocalProvider(id)) return !!keys?.[id];
@@ -216,7 +220,9 @@ export function ModelsSection() {
   const addableProviders = PROVIDERS.filter((p) => !visibleIds.has(p.id));
 
   const removeProvider = (id: ProviderId) => {
-    if (id === "openrouter") {
+    if (id === "codex") {
+      void setCodexCliPath("");
+    } else if (id === "openrouter") {
       void setOpenrouterModelId("");
       void onClearKey(id);
     } else if (isLocalProvider(id)) {
@@ -274,7 +280,13 @@ export function ModelsSection() {
         ) : (
           <div className="flex flex-col gap-2">
             {visibleProviders.map((p) =>
-              isLocalProvider(p.id) || p.id === "openrouter" ? (
+              p.id === "codex" ? (
+                <CodexProviderCard
+                  key={p.id}
+                  provider={p}
+                  cliPath={codexCliPath}
+                />
+              ) : isLocalProvider(p.id) || p.id === "openrouter" ? (
                 <LocalProviderCard
                   key={p.id}
                   provider={p}
@@ -500,7 +512,8 @@ function AutocompleteRow({
   // Fast cloud tiers + any configured local provider (one model id each).
   const items = useMemo(() => {
     const local = PROVIDERS.filter(
-      (p) => isLocalProvider(p.id) && configuredIds.has(p.id),
+      (p) =>
+        p.id !== "codex" && isLocalProvider(p.id) && configuredIds.has(p.id),
     ).flatMap((p) => {
       const m = MODELS.find((x) => x.provider === p.id);
       return m ? [m] : [];
@@ -700,6 +713,7 @@ function LocalProviderCard({
           variant="ghost"
           onClick={onRemove}
           title="Remove provider"
+          aria-label="Remove provider"
           className="size-7 text-muted-foreground hover:text-destructive"
         >
           <HugeiconsIcon icon={Cancel01Icon} size={12} strokeWidth={1.75} />
@@ -784,6 +798,7 @@ function LocalProviderCard({
                   variant="ghost"
                   onClick={() => void onClearKey()}
                   title="Remove key"
+                  aria-label="Remove key"
                   className="size-7 text-muted-foreground hover:text-destructive"
                 >
                   <HugeiconsIcon icon={Cancel01Icon} size={12} strokeWidth={1.75} />
@@ -826,6 +841,161 @@ function LocalProviderCard({
         ) : null}
       </div>
     </div>
+  );
+}
+
+function CodexProviderCard({
+  provider,
+  cliPath,
+}: {
+  provider: ProviderInfo;
+  cliPath: string;
+}) {
+  const [draft, setDraft] = useState(cliPath);
+  const [status, setStatus] = useState<CodexStatus | null>(null);
+  const [checking, setChecking] = useState(false);
+
+  useEffect(() => setDraft(cliPath), [cliPath]);
+
+  const refresh = async (path = draft) => {
+    const cli = path.trim();
+    setChecking(true);
+    try {
+      setStatus(await native.codexStatus(cli || null));
+    } catch (error) {
+      setStatus({
+        supported: true,
+        cliAvailable: false,
+        cliVersionSupported: false,
+        cliPath: cli || "codex",
+        cliVersion: null,
+        minCliVersion: "0.134.0",
+        daemonRunning: false,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    } finally {
+      setChecking(false);
+    }
+  };
+
+  useEffect(() => {
+    void refresh(cliPath);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cliPath]);
+
+  const connected =
+    status?.supported === true &&
+    status.cliAvailable &&
+    status.cliVersionSupported;
+
+  return (
+    <div className="flex flex-col gap-2 rounded-lg border border-border/60 bg-card/60 px-3 py-2.5">
+      <div className="flex items-center gap-2">
+        <ProviderIcon provider={provider.id} size={15} />
+        <span className="text-[12.5px] font-medium">{provider.label}</span>
+        {connected ? (
+          <Badge
+            variant="outline"
+            className="ml-1 h-4 gap-1 border-border/60 bg-muted/40 px-1.5 text-[10px] font-normal text-muted-foreground"
+          >
+            <HugeiconsIcon icon={CheckmarkCircle02Icon} size={9} strokeWidth={2} />
+            Connected
+          </Badge>
+        ) : null}
+        <button
+          type="button"
+          onClick={() => void openUrl(provider.consoleUrl)}
+          className="ml-auto inline-flex items-center gap-0.5 text-[10.5px] text-muted-foreground transition-colors hover:text-foreground"
+        >
+          Docs
+          <HugeiconsIcon icon={ArrowUpRight01Icon} size={11} strokeWidth={1.75} />
+        </button>
+      </div>
+
+      <span className="text-[10.5px] leading-relaxed text-muted-foreground">
+        Uses your local Codex CLI app-server with your host Codex config.
+      </span>
+
+      <div className="mt-0.5 flex flex-col gap-2.5">
+        <FieldRow label="CLI path">
+          <div className="flex flex-1 gap-1.5">
+            <Input
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onBlur={() => {
+                const v = draft.trim();
+                if (v !== cliPath) void setCodexCliPath(v);
+              }}
+              placeholder="codex"
+              spellCheck={false}
+              className="h-8 flex-1 font-mono text-[11.5px]"
+            />
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => void refresh()}
+              disabled={checking}
+              className="h-8 px-3 text-[11px]"
+            >
+              {checking ? "Checking..." : "Check"}
+            </Button>
+          </div>
+        </FieldRow>
+
+        <CodexStatusLine status={status} checking={checking} />
+      </div>
+    </div>
+  );
+}
+
+function CodexStatusLine({
+  status,
+  checking,
+}: {
+  status: CodexStatus | null;
+  checking: boolean;
+}) {
+  if (checking) {
+    return (
+      <span className="text-[10.5px] text-muted-foreground">Checking...</span>
+    );
+  }
+  if (!status) {
+    return (
+      <span className="text-[10.5px] text-muted-foreground">
+        Auto-detects <span className="font-mono">codex</span> from PATH unless
+        a path is set.
+      </span>
+    );
+  }
+  if (!status.supported) {
+    return (
+      <span className="text-[10.5px] text-destructive/80">
+        Codex CLI app-server is supported on macOS and Linux.
+      </span>
+    );
+  }
+  if (!status.cliAvailable) {
+    return (
+      <span className="text-[10.5px] text-destructive/80">
+        Could not run {status.cliPath}: {status.error ?? "not found"}
+      </span>
+    );
+  }
+  if (!status.cliVersionSupported) {
+    return (
+      <span className="text-[10.5px] text-destructive/80">
+        {status.cliVersion ?? status.cliPath} is below the required Codex CLI{" "}
+        {status.minCliVersion}.
+      </span>
+    );
+  }
+  return (
+    <span className="flex items-center gap-1 text-[10.5px] text-muted-foreground">
+      <HugeiconsIcon icon={CheckmarkCircle02Icon} size={11} strokeWidth={2} />
+      {status.cliVersion ?? status.cliPath}
+      {status.daemonRunning ? " app-server is running." : " app-server will start on first use."}
+    </span>
   );
 }
 

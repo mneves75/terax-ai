@@ -90,14 +90,13 @@ export function TabBar({
           <TabsList className="h-7 w-max gap-0.5 bg-transparent p-0">
             {tabs.map((t) => {
               const isPreview = t.kind === "editor" && (t as EditorTab).preview;
+              const canClose = tabs.length > 1;
               return (
-                <TabsTrigger
+                <div
                   key={t.id}
-                  value={String(t.id)}
                   data-tab-id={t.id}
-                  onDoubleClick={() => isPreview && onPin(t.id)}
                   onAuxClick={(e) => {
-                    if (e.button === 1 && tabs.length > 1) {
+                    if (e.button === 1 && canClose) {
                       e.preventDefault();
                       e.stopPropagation();
                       onClose(t.id);
@@ -106,52 +105,61 @@ export function TabBar({
                   onMouseDown={(e) => {
                     if (e.button === 1) e.preventDefault();
                   }}
-                  className={cn(
-                    "group h-7 shrink-0 gap-1.5 rounded-md text-xs text-muted-foreground transition-colors data-[state=active]:bg-accent data-[state=active]:text-foreground hover:text-foreground/80 justify-between",
-                    compact
-                      ? "px-1.5!"
-                      : tabs.length === 1
-                        ? "px-2!"
-                        : "ps-2! pe-1!",
-                  )}
+                  className="group relative flex h-7 shrink-0 items-center"
                 >
-                  <span
+                  <TabsTrigger
+                    value={String(t.id)}
+                    onDoubleClick={() => isPreview && onPin(t.id)}
                     className={cn(
-                      "flex items-center gap-1.5 truncate",
-                      compact ? "max-w-48" : "max-w-80",
+                      "h-7 shrink-0 justify-start gap-1.5 rounded-md text-xs text-muted-foreground transition-colors data-[state=active]:bg-accent data-[state=active]:text-foreground hover:text-foreground/80",
+                      compact
+                        ? canClose
+                          ? "ps-1.5! pe-6!"
+                          : "px-1.5!"
+                        : canClose
+                          ? "ps-2! pe-6!"
+                          : "px-2!",
                     )}
                   >
-                    <TabIcon tab={t} />
-                    {/* Preview tabs use italic to signal the transient state,
-                        matching the visual convention from VSCode. */}
-                    <span className={cn("truncate", isPreview && "italic")}>
-                      {labelFor(t)}
-                    </span>
-                    {t.kind === "editor" && t.dirty ? (
-                      <span
-                        aria-label="Unsaved changes"
-                        className="size-1.5 shrink-0 rounded-full bg-foreground/70"
-                      />
-                    ) : null}
-                  </span>
-                  {tabs.length > 1 && (
                     <span
-                      role="button"
-                      aria-label="Close tab"
+                      className={cn(
+                        "flex items-center gap-1.5 truncate",
+                        compact ? "max-w-48" : "max-w-80",
+                      )}
+                    >
+                      <TabIcon tab={t} />
+                      {/* Preview tabs use italic to signal the transient state,
+                          matching the visual convention from VSCode. */}
+                      <span className={cn("truncate", isPreview && "italic")}>
+                        {labelFor(t)}
+                      </span>
+                      {t.kind === "editor" && t.dirty ? (
+                        <span
+                          aria-label="Unsaved changes"
+                          className="size-1.5 shrink-0 rounded-full bg-foreground/70"
+                        />
+                      ) : null}
+                    </span>
+                  </TabsTrigger>
+                  {canClose && (
+                    <button
+                      type="button"
+                      aria-label={`Close ${labelFor(t)}`}
+                      title="Close tab"
                       onClick={(e) => {
                         e.stopPropagation();
                         onClose(t.id);
                       }}
-                      className="rounded p-0.5 opacity-0 transition-opacity hover:bg-accent hover:opacity-100 group-hover:opacity-60"
+                      className="absolute right-1 rounded p-0.5 opacity-0 transition-opacity hover:bg-accent hover:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring group-hover:opacity-60"
                     >
                       <HugeiconsIcon
                         icon={Cancel01Icon}
                         size={11}
                         strokeWidth={2}
                       />
-                    </span>
+                    </button>
                   )}
-                </TabsTrigger>
+                </div>
               );
             })}
           </TabsList>

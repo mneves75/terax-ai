@@ -38,11 +38,12 @@ import {
   Settings01Icon,
   StarIcon,
   StopCircleIcon,
+  TerminalIcon,
   Tick01Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { motion } from "motion/react";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   getModel,
   MODELS,
@@ -55,6 +56,7 @@ import {
 } from "../config";
 import { ACCEPTED_FILES, useComposer } from "../lib/composer";
 import { toggleFavoriteModel } from "../lib/modelPrefs";
+import { native } from "../lib/native";
 import { useChatStore } from "../store/chatStore";
 import { usePreferencesStore } from "@/modules/settings/preferences";
 
@@ -72,6 +74,7 @@ const PROVIDER_ICON = {
   lmstudio: ComputerIcon,
   mlx: AppleIcon,
   ollama: ServerStack01Icon,
+  codex: TerminalIcon,
 } as const satisfies Record<ProviderId, typeof ChatGptIcon>;
 
 export function AiOpenButton({ onOpen }: { onOpen: () => void }) {
@@ -212,17 +215,43 @@ function ModelDropdown() {
   const setSelected = useChatStore((s) => s.setSelectedModelId);
   const favoriteIds = usePreferencesStore((s) => s.favoriteModelIds);
   const recentIds = usePreferencesStore((s) => s.recentModelIds);
+  const codexCliPath = usePreferencesStore((s) => s.codexCliPath);
   const current = getModel(selected);
   const [search, setSearch] = useState("");
   const [activeProvider, setActiveProvider] = useState<ProviderId | null>(null);
   const [tab, setTab] = useState<Tab>("all");
+  const [codexAvailable, setCodexAvailable] = useState<boolean | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    let alive = true;
+    setCodexAvailable(null);
+    native
+      .codexStatus(codexCliPath.trim() || null)
+      .then((status) => {
+        if (!alive) return;
+        setCodexAvailable(
+          status.supported && status.cliAvailable && status.cliVersionSupported,
+        );
+      })
+      .catch(() => {
+        if (alive) setCodexAvailable(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [codexCliPath]);
+
   const currentProviderHasKey = providerNeedsKey(current.provider)
     ? !!apiKeys[current.provider]
-    : true;
+    : current.provider === "codex"
+      ? codexAvailable === true
+      : true;
 
-  const hasKeyFor = (id: ProviderId) =>
-    providerNeedsKey(id) ? !!apiKeys[id] : true;
+  const hasKeyFor = (id: ProviderId) => {
+    if (id === "codex") return codexAvailable === true;
+    return providerNeedsKey(id) ? !!apiKeys[id] : true;
+  };
 
   const sortedProviders = useMemo(() => {
     const configured: (typeof PROVIDERS)[number][] = [];
@@ -231,8 +260,7 @@ function ModelDropdown() {
       (hasKeyFor(p.id) ? configured : unconfigured).push(p);
     }
     return { configured, unconfigured };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [apiKeys]);
+  }, [apiKeys, codexAvailable]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -278,7 +306,9 @@ function ModelDropdown() {
           title={
             currentProviderHasKey
               ? `Model: ${current.label}`
-              : `${current.label} — no key configured`
+              : current.provider === "codex"
+                ? "Codex CLI is not available"
+                : `${current.label} — no key configured`
           }
         >
           {current.label}
@@ -357,6 +387,8 @@ function ModelDropdown() {
                   title={
                     hasKeyFor(p.id)
                       ? p.label
+                      : p.id === "codex"
+                        ? "Codex CLI is not available"
                       : `${p.label} — not configured`
                   }
                   active={activeProvider === p.id}

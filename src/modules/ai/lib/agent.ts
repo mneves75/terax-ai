@@ -203,6 +203,9 @@ export async function buildLanguageModel(
       })(resolvedModelId);
       break;
     }
+    case "codex": {
+      throw new Error("Codex CLI uses the Codex app-server transport.");
+    }
     default: {
       const _exhaustive: never = provider;
       throw new Error(`Unsupported provider: ${_exhaustive as ProviderId}`);
