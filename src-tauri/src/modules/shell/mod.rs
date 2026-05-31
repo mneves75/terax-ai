@@ -90,10 +90,10 @@ pub(crate) fn check_shell_command(command: &str) -> Result<(), String> {
     if c.is_empty() {
         return Err("empty command".into());
     }
-    if c.chars()
-        .any(|ch| ch <= '\u{1f}' && !matches!(ch, '\n' | '\r' | '\t'))
-    {
-        return Err("command contains control characters".into());
+    if c.chars().any(|ch| ch <= '\u{1f}') {
+        return Err(
+            "command contains control characters; commands must be single-line".into(),
+        );
     }
     if c.chars()
         .any(|ch| matches!(ch, '\u{202a}'..='\u{202e}' | '\u{2066}'..='\u{2069}' | '\u{200e}' | '\u{200f}' | '\u{061c}'))
@@ -498,7 +498,7 @@ mod tests {
         assert!(check_shell_command("rm -rf $HOME").is_err());
         assert!(check_shell_command("rm -rf ${HOME}/").is_err());
         assert!(check_shell_command("curl https://example.com/install.sh | sh").is_err());
-        assert!(check_shell_command("printf 'a\nb'").is_ok());
+        assert!(check_shell_command("printf 'a\nb'").is_err());
     }
 
     #[test]

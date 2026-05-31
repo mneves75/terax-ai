@@ -238,7 +238,7 @@ html[data-chrome="borderless"] #settings-root {
   display: none !important;
 }
 
-body {
+[data-tauri-drag-region] {
   -webkit-user-select: none;
   user-select: none;
 }
@@ -250,6 +250,17 @@ textarea,
 .select-text * {
   -webkit-user-select: text;
   user-select: text;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.001ms !important;
+  }
 }
 
 .cm-color-swatch {

@@ -142,5 +142,57 @@
       <li><code>cargo audit --deny warnings</code>: failed on 19 RustSec warnings from transitive Tauri/Wry GTK/urlpattern stack dependencies, including unmaintained GTK3 bindings and unsound advisories in <code>glib</code>/<code>rand</code>. No new direct dependency advisory was found for <code>tungstenite</code>.</li>
       <li>Codex first-delta latency remains a known UX risk. The app now surfaces step/status updates immediately, but host Codex app-server startup still delays first assistant text in the measured E2E.</li>
     </ul>
+
+    <h2>2026-05-28 Follow-Up Review Pass</h2>
+    <div class="status">
+      <p><strong>Milestone 1 current-run findings and fixes.</strong></p>
+      <ul>
+        <li>Scope re-locked to <code>/Users/mneves/dev/terax-ai</code> on branch <code>main</code>; worktree was clean at start.</li>
+        <li>Loaded requested <code>modern-web-guidance</code>, <code>design-review</code>, and <code>code-review</code> surfaces. Modern guidance emphasized accessible names, live regions, careful iframe capability grants, and avoiding high-risk browser permissions for untrusted content.</li>
+        <li>Deviation: <code>TERAX.md</code> says pnpm only and no npx, while the required <code>modern-web-guidance</code> skill explicitly commands <code>npx -y modern-web-guidance@latest</code>. I followed the requested skill for retrieval, then returned to pnpm for project commands.</li>
+        <li>Claude Code CLI is installed at <code>2.1.153</code>; a read-only Claude UI/UX review command is running as an external review lane.</li>
+        <li>Spawned Codex native review lanes for source architecture, UI/UX design, and test strategy. No implementation work will be considered milestone-complete until the post-fix code-review gate passes.</li>
+        <li>Implemented a first security/accessibility repair set: external preview iframes no longer receive <code>allow-same-origin</code>, downloads, or clipboard permissions; loopback dev previews keep those capabilities.</li>
+        <li>Added accessible names and polite status announcement to the preview toolbar, added explorer toolbar labels and tree row state, and gave AI composer controls specific accessible names.</li>
+        <li>Tradeoff: public external previews may be less functional than local dev previews. This is intentional because arbitrary external pages should not get local-preview privileges inside the app webview.</li>
+      </ul>
+    </div>
+
+    <h2>2026-05-31 Verification And Finalization Pass</h2>
+    <div class="status risk">
+      <p><strong>Critical finding: the in-flight read-authorization refactor left the Rust test suite uncompilable.</strong></p>
+      <ul>
+        <li>The prior pass moved the fs read commands (<code>fs_read_dir</code>, <code>list_subdirs</code>, <code>fs_search</code>, <code>fs_list_files</code>, <code>fs_grep</code>, <code>fs_glob</code>) onto <code>authorize_read_path(registry, ...)</code> and added <code>*_inner</code> variants taking <code>&WorkspaceRegistry</code>. The integration test <code>src-tauri/tests/fs_search.rs</code> was renamed to call the <code>*_inner</code> functions but the new <code>&registry</code> argument was never passed, so <code>cargo test --locked</code> and <code>cargo clippy --all-targets</code> both failed to compile the <code>fs_search</code> test (27 errors, E0061).</li>
+        <li>This was masked earlier because the verification command piped <code>cargo test</code> through <code>tail</code>, so the recorded exit code came from <code>tail</code> (0), not from cargo. The build was actually red.</li>
+        <li>Fix: passed <code>&fx.registry</code> to every <code>*_inner</code> call; used <code>&WorkspaceRegistry::default()</code> for the two non-fixture error-path tests (which fail at canonicalize on a nonexistent path regardless of registry, keeping the import used).</li>
+        <li>Added two regression tests that lock the new invariant directly: <code>grep_unauthorized_root_errors</code> and <code>read_dir_unauthorized_root_errors</code> assert a real, readable directory that was never authorized is refused.</li>
+      </ul>
+    </div>
+    <div class="status">
+      <p><strong>Manual review of the in-flight security + accessibility changes (no critical/high issues found).</strong></p>
+      <ul>
+        <li>Read-path authorization cannot break the explorer: <code>bootstrap_registry</code> authorizes the resolved launch dir and home; <code>lib.rs</code> additionally authorizes the CLI launch dir; terminal cwds are authorized as they arrive via <code>workspace_authorize</code>. <code>is_authorized</code> uses <code>target.starts_with(root)</code>, so descendants of any authorized root pass. Confirmed by existing fixture tests (subdir accepted, symlink escape rejected) plus the two new tests.</li>
+        <li><code>inert</code> replacing <code>aria-hidden</code> on hidden tab panels and the collapsed composer is correct for React 19 (typechecks); it only blocks focus/interaction/AT and does not stop background PTY/dev-server streaming. When a tab activates the attribute is removed before focus, so terminal focus still works.</li>
+        <li>iframe sandbox split is a strict tightening: external URLs lose <code>allow-same-origin</code>, <code>allow-downloads</code>, and clipboard; loopback keeps them; <code>allow-top-navigation*</code> is never granted. Covered by <code>PreviewPane.test.ts</code>.</li>
+        <li>Stricter <code>check_shell_command</code> (rejects all control chars incl. newline) is an intentional security tradeoff: it prevents smuggling a second command past the single-line approval card the user sees. Multi-line AI commands must be split. Documented as a deviation from the earlier "allow multi-line shell snippets" decision.</li>
+      </ul>
+    </div>
+    <div class="status ok">
+      <p><strong>Final validation evidence, 2026-05-31 (post-fix).</strong></p>
+      <ul>
+        <li><code>pnpm exec tsc --noEmit</code>: passed (exit 0).</li>
+        <li><code>pnpm test</code> (vitest run): passed, 8 files / 82 tests, including <code>PreviewPane.test.ts</code> sandbox coverage.</li>
+        <li><code>cd src-tauri &amp;&amp; cargo test --locked</code>: passed, exit 0. 138 lib + 25 fs_search (was 23, now incl. 2 new authorization regression tests) + 25 git_operations + 7 shell_background + 0 doctests.</li>
+        <li><code>cd src-tauri &amp;&amp; cargo clippy --locked --all-targets --all-features -- -D warnings</code>: passed, exit 0.</li>
+        <li>Version bumped 0.7.3 to 0.7.4 across <code>package.json</code>, <code>src-tauri/Cargo.toml</code>, <code>src-tauri/tauri.conf.json</code>; <code>Cargo.lock</code> regenerated and re-verified under <code>--locked</code>.</li>
+      </ul>
+    </div>
+    <h2>2026-05-31 Blockers And Residual Risks</h2>
+    <ul>
+      <li>Lore Commit Protocol: the goal references a protocol in <code>AGENTS.md</code>, but <code>AGENTS.md</code> only contains the text <code>TERAX.md</code> and <code>TERAX.md</code> defines no such protocol. Used a commit message following TERAX conventions instead (imperative, no em-dash, no emoji). This is a documented deviation, not an invented protocol.</li>
+      <li>Independent code-review subagent: launched but terminated by a transient server-side rate limit (0 tokens, not a usage limit). Evidence rests on manual line-by-line review plus the full passing verification suite above.</li>
+      <li>Staging deploy: not applicable. Terax is a Tauri desktop app with no staging server; there is no staging environment to deploy to. Signed bundle/updater still requires <code>TAURI_SIGNING_PRIVATE_KEY</code> (unset), as recorded earlier.</li>
+      <li>Native UI smoke for the new a11y/sandbox attributes was not run in a live Tauri window; the changes are attribute-level and covered by typecheck plus unit tests. A full native smoke remains the next-best residual check.</li>
+    </ul>
   </body>
 </html>

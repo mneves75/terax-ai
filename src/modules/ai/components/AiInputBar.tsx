@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverAnchor } from "@/components/ui/popover";
 import { Spinner } from "@/components/ui/spinner";
+import { isImeComposing } from "@/lib/keyboard";
 import { cn } from "@/lib/utils";
 import {
   Cancel01Icon,
@@ -242,6 +243,8 @@ export function AiInputBar() {
               <textarea
                 ref={c.textareaRef}
                 value={c.value}
+                aria-label="Ask Terax"
+                aria-expanded={pickerOpen}
                 onChange={(e) => c.setValue(e.target.value)}
                 onKeyUp={updateTrigger}
                 onClick={updateTrigger}
@@ -261,7 +264,10 @@ export function AiInputBar() {
                       setActiveIndex((i) => Math.max(0, i - 1));
                       return;
                     }
-                    if (e.key === "Tab" || e.key === "Enter") {
+                    if (
+                      e.key === "Tab" ||
+                      (e.key === "Enter" && !isImeComposing(e))
+                    ) {
                       if (items.length > 0) {
                         e.preventDefault();
                         pickActive();
@@ -281,7 +287,11 @@ export function AiInputBar() {
                       return;
                     }
                   }
-                  if (e.key === "Enter" && !e.shiftKey) {
+                  if (
+                    e.key === "Enter" &&
+                    !e.shiftKey &&
+                    !isImeComposing(e)
+                  ) {
                     e.preventDefault();
                     c.submit();
                   }
@@ -381,8 +391,8 @@ function ChipsRow({
             <button
               type="button"
               onClick={() => onRemoveCommand(cmd.name)}
-              className="ml-0.5 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100"
-              aria-label="Remove command"
+              className="ml-0.5 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100"
+              aria-label={`Remove command ${cmd.name}`}
             >
               <HugeiconsIcon icon={Cancel01Icon} size={10} strokeWidth={2} />
             </button>
@@ -409,8 +419,8 @@ function ChipsRow({
             <button
               type="button"
               onClick={() => onRemoveSnippet(s.id)}
-              className="ml-0.5 opacity-0 transition-opacity group-hover:opacity-100"
-              aria-label="Remove snippet"
+              className="ml-0.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100"
+              aria-label={`Remove snippet ${s.handle}`}
             >
               <HugeiconsIcon icon={Cancel01Icon} size={10} strokeWidth={2} />
             </button>
@@ -451,8 +461,8 @@ function ChipsRow({
             <button
               type="button"
               onClick={() => onRemoveFile(f.id)}
-              className="ml-0.5 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100"
-              aria-label="Remove"
+              className="ml-0.5 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100"
+              aria-label={`Remove ${f.name}`}
             >
               <HugeiconsIcon icon={Cancel01Icon} size={10} strokeWidth={2} />
             </button>

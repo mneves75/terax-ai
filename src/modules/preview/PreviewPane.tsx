@@ -59,7 +59,8 @@ export const PreviewPane = forwardRef<PreviewPaneHandle, Props>(
       [url],
     );
 
-    const showXfoHint = url ? !isLocalUrl(url) : false;
+    const localPreview = url ? isLocalPreviewUrl(url) : false;
+    const showXfoHint = url ? !localPreview : false;
 
     return (
       <div
@@ -109,9 +110,9 @@ export const PreviewPane = forwardRef<PreviewPaneHandle, Props>(
                 // `allow-top-navigation*` — without it the iframe cannot
                 // navigate the parent Tauri webview to an attacker origin,
                 // which would otherwise expose `window.__TAURI__` IPC.
-                sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads"
+                sandbox={previewSandboxForUrl(url)}
                 referrerPolicy="no-referrer"
-                allow="clipboard-read; clipboard-write; fullscreen"
+                allow={previewAllowForUrl(url)}
               />
             ) : (
               <SuspendedState
@@ -179,15 +180,30 @@ function EmptyState() {
   );
 }
 
-function isLocalUrl(url: string): boolean {
+const LOCAL_PREVIEW_SANDBOX =
+  "allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads";
+const EXTERNAL_PREVIEW_SANDBOX =
+  "allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox";
+
+export function previewSandboxForUrl(url: string): string {
+  return isLocalPreviewUrl(url) ? LOCAL_PREVIEW_SANDBOX : EXTERNAL_PREVIEW_SANDBOX;
+}
+
+export function previewAllowForUrl(url: string): string {
+  return isLocalPreviewUrl(url)
+    ? "clipboard-read; clipboard-write; fullscreen"
+    : "fullscreen";
+}
+
+export function isLocalPreviewUrl(url: string): boolean {
   try {
     const u = new URL(url);
-    const h = u.hostname;
+    const h = u.hostname.replace(/^\[(.*)\]$/, "$1");
     return (
       h === "localhost" ||
       h === "127.0.0.1" ||
       h === "0.0.0.0" ||
-      h === "[::1]" ||
+      h === "::1" ||
       h.endsWith(".localhost")
     );
   } catch {

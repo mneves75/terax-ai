@@ -65,6 +65,10 @@ type Row =
 const ROW_HEIGHT = 24;
 const OVERSCAN = 8;
 
+function treeItemId(path: string): string {
+  return `file-tree-${path.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
+}
+
 function basename(path: string): string {
   const parts = path.split(/[\\/]/).filter(Boolean);
   return parts.length ? parts[parts.length - 1] : path;
@@ -334,6 +338,7 @@ export const FileExplorer = forwardRef<FileExplorerHandle, Props>(
               isDir={row.isDir}
               isExpanded={row.kind === "entry" ? row.isExpanded : false}
               depth={row.depth}
+              treeItemId={treeItemId(row.path)}
               rootPath={rootPath}
               tree={tree}
               isSelected={selectedPath === row.path}
@@ -365,7 +370,7 @@ export const FileExplorer = forwardRef<FileExplorerHandle, Props>(
     return (
       <div
         ref={containerRef}
-        className="flex h-full flex-col outline-none"
+        className="flex h-full flex-col outline-none focus-visible:ring-1 focus-visible:ring-ring/50"
         tabIndex={0}
         onKeyDown={handleKeyDown}
       >
@@ -401,6 +406,7 @@ export const FileExplorer = forwardRef<FileExplorerHandle, Props>(
             className="size-6 text-muted-foreground hover:text-foreground"
             onClick={() => tree.beginCreate(rootPath, "file")}
             title="New file"
+            aria-label="New file"
           >
             <HugeiconsIcon icon={FileAddIcon} size={13} strokeWidth={2} />
           </Button>
@@ -410,6 +416,7 @@ export const FileExplorer = forwardRef<FileExplorerHandle, Props>(
             className="size-6 text-muted-foreground hover:text-foreground"
             onClick={() => tree.beginCreate(rootPath, "dir")}
             title="New folder"
+            aria-label="New folder"
           >
             <HugeiconsIcon icon={FolderAddIcon} size={13} strokeWidth={2} />
           </Button>
@@ -419,6 +426,7 @@ export const FileExplorer = forwardRef<FileExplorerHandle, Props>(
             className="size-6 text-muted-foreground hover:text-foreground"
             onClick={() => tree.refresh(rootPath)}
             title="Refresh"
+            aria-label="Refresh file explorer"
           >
             <HugeiconsIcon icon={Refresh01Icon} size={12} strokeWidth={2} />
           </Button>
@@ -441,6 +449,11 @@ export const FileExplorer = forwardRef<FileExplorerHandle, Props>(
               <div
                 ref={scrollRef}
                 className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden [scrollbar-gutter:stable]"
+                role="tree"
+                aria-label={`Files in ${basename(rootPath)}`}
+                aria-activedescendant={
+                  selectedPath ? treeItemId(selectedPath) : undefined
+                }
               >
                 {pendingAtRoot ? (
                   <div

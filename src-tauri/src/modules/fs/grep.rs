@@ -8,12 +8,13 @@ use grep_searcher::{BinaryDetection, SearcherBuilder};
 use ignore::{WalkBuilder, WalkState};
 use serde::Serialize;
 
-use super::to_canon;
-use crate::modules::workspace::{resolve_path, WorkspaceEnv};
+use super::{security::authorize_read_path, to_canon};
+use crate::modules::workspace::{WorkspaceEnv, WorkspaceRegistry};
 
 const FILE_SIZE_CAP: u64 = 5 * 1024 * 1024;
 const DEFAULT_MAX_RESULTS: usize = 200;
 const HARD_MAX_RESULTS: usize = 2000;
+const MAX_SCANNED: usize = 50_000;
 
 #[derive(Serialize)]
 pub struct GrepHit {
@@ -51,12 +52,33 @@ pub fn fs_grep(
     case_insensitive: Option<bool>,
     max_results: Option<usize>,
     workspace: Option<WorkspaceEnv>,
+    registry: tauri::State<WorkspaceRegistry>,
+) -> Result<GrepResponse, String> {
+    fs_grep_inner(
+        pattern,
+        root,
+        glob,
+        case_insensitive,
+        max_results,
+        workspace,
+        &registry,
+    )
+}
+
+pub fn fs_grep_inner(
+    pattern: String,
+    root: String,
+    glob: Option<Vec<String>>,
+    case_insensitive: Option<bool>,
+    max_results: Option<usize>,
+    workspace: Option<WorkspaceEnv>,
+    registry: &WorkspaceRegistry,
 ) -> Result<GrepResponse, String> {
     if pattern.is_empty() {
         return Err("empty pattern".into());
     }
     let workspace = WorkspaceEnv::from_option(workspace);
-    let root_path = resolve_path(&root, &workspace);
+    let root_path = authorize_read_path(registry, &root, &workspace)?;
     if !root_path.is_dir() {
         return Err(format!("not a directory: {root}"));
     }
@@ -123,7 +145,10 @@ pub fn fs_grep(
                 }
             }
 
-            scanned.fetch_add(1, Ordering::Relaxed);
+            if scanned.fetch_add(1, Ordering::Relaxed) >= MAX_SCANNED {
+                truncated.store(true, Ordering::Relaxed);
+                return WalkState::Quit;
+            }
 
             let abs = display_path(path, &root_path, &root_display, &workspace);
             let rel_clone = rel.clone();
@@ -185,12 +210,23 @@ pub fn fs_glob(
     root: String,
     max_results: Option<usize>,
     workspace: Option<WorkspaceEnv>,
+    registry: tauri::State<WorkspaceRegistry>,
+) -> Result<GlobResponse, String> {
+    fs_glob_inner(pattern, root, max_results, workspace, &registry)
+}
+
+pub fn fs_glob_inner(
+    pattern: String,
+    root: String,
+    max_results: Option<usize>,
+    workspace: Option<WorkspaceEnv>,
+    registry: &WorkspaceRegistry,
 ) -> Result<GlobResponse, String> {
     if pattern.is_empty() {
         return Err("empty pattern".into());
     }
     let workspace = WorkspaceEnv::from_option(workspace);
-    let root_path = resolve_path(&root, &workspace);
+    let root_path = authorize_read_path(registry, &root, &workspace)?;
     if !root_path.is_dir() {
         return Err(format!("not a directory: {root}"));
     }
@@ -213,7 +249,13 @@ pub fn fs_glob(
 
     let mut hits: Vec<GlobHit> = Vec::new();
     let mut truncated = false;
+    let mut scanned = 0usize;
     for dent in walker.flatten() {
+        scanned += 1;
+        if scanned > MAX_SCANNED {
+            truncated = true;
+            break;
+        }
         if hits.len() >= cap {
             truncated = true;
             break;

@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { isImeComposing } from "@/lib/keyboard";
 import { KEY_SEP } from "@/lib/platform";
 import type { EditorPaneHandle } from "@/modules/editor";
 import { usePreferencesStore } from "@/modules/settings/preferences";
@@ -56,6 +57,7 @@ export const SearchInline = forwardRef<SearchInlineHandle, Props>(
       if (!el || !pendingFocusRef.current) return;
       pendingFocusRef.current = false;
       el.focus();
+      el.select();
     }, []);
 
     const userShortcuts = usePreferencesStore((s) => s.shortcuts);
@@ -84,7 +86,10 @@ export const SearchInline = forwardRef<SearchInlineHandle, Props>(
     const focus = useCallback(() => {
       pendingFocusRef.current = true;
       if (compact) setOpenInCompact(true);
-      else inputRef.current?.focus();
+      else {
+        inputRef.current?.focus();
+        inputRef.current?.select();
+      }
       if (inputRef.current) pendingFocusRef.current = false;
     }, [compact]);
 
@@ -171,7 +176,7 @@ export const SearchInline = forwardRef<SearchInlineHandle, Props>(
                   if (compact && !q) setOpenInCompact(false);
                 }}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter") {
+                  if (e.key === "Enter" && !isImeComposing(e)) {
                     e.preventDefault();
                     findDirection(!e.shiftKey);
                   } else if (e.key === "Escape") {

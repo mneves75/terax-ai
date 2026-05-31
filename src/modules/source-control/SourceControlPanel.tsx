@@ -18,6 +18,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { isImeComposing } from "@/lib/keyboard";
 import { IS_MAC } from "@/lib/platform";
 import { cn } from "@/lib/utils";
 import { fileIconUrl } from "@/modules/explorer/lib/iconResolver";
@@ -202,6 +203,7 @@ export const SourceControlPanel = memo(function SourceControlPanel({
   const handleCommitShortcut = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (
       event.key === "Enter" &&
+      !isImeComposing(event) &&
       (event.metaKey || event.ctrlKey) &&
       canCommit
     ) {
@@ -564,10 +566,11 @@ export const SourceControlPanel = memo(function SourceControlPanel({
                   value={scm.commitMessage}
                   onChange={(event) => scm.setCommitMessage(event.target.value)}
                   onKeyDown={handleCommitShortcut}
+                  aria-label="Commit message"
                   placeholder="Commit message"
                   rows={3}
                   className={cn(
-                    "min-h-[72px] border-  resize-none rounded-lg  bg-transparent px-3 pb-7 pt-2.5 text-[12.5px] leading-snug shadow-none placeholder:text-muted-foreground/65 focus-visible:ring-0 focus:border-0",
+                    "min-h-[72px] resize-none rounded-lg bg-transparent px-3 pb-7 pt-2.5 text-[12.5px] leading-snug shadow-none placeholder:text-muted-foreground/65 focus-visible:ring-1 focus-visible:ring-ring/50 focus:border-0",
                   )}
                 />
                 <div className="pointer-events-none absolute inset-x-3 bottom-1.5 flex items-center justify-between p-1 gap-2 text-[10px] tabular-nums text-muted-foreground/55">
@@ -982,9 +985,9 @@ const EntryRow = memo(function EntryRow({
       </button>
 
       {showDiscard ? (
-        <div className="flex shrink-0 items-center opacity-0 transition-opacity group-hover:opacity-100 data-[focused=true]:opacity-100 data-[selected=true]:opacity-100">
+        <div className="flex shrink-0 items-center opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 group-data-[focused=true]:opacity-100 group-data-[selected=true]:opacity-100">
           <IconActionButton
-            label={`Discard ${entry.path}`}
+            label={`Discard changes in ${entry.path}`}
             disabled={disabled}
             side="top"
             onClick={() => onDiscardFile(entry)}

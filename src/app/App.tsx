@@ -113,9 +113,10 @@ import { invoke } from "@tauri-apps/api/core";
 import { homeDir } from "@tauri-apps/api/path";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import type { SearchAddon } from "@xterm/addon-search";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, motion, MotionConfig } from "motion/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PanelImperativeHandle } from "react-resizable-panels";
+import { toast } from "sonner";
 
 function dirname(path: string | null): string | null {
   if (!path) return null;
@@ -338,7 +339,7 @@ export default function App() {
       }
       const dirty = tabsRef.current.some((t) => t.kind === "editor" && t.dirty);
       if (dirty) {
-        window.alert("Save or close unsaved editor tabs before switching workspace.");
+        toast.error("Save or close unsaved editor tabs before switching workspace.");
         return;
       }
 
@@ -350,7 +351,7 @@ export default function App() {
           nextHome = (await homeDir()).replace(/\\/g, "/");
         }
       } catch (e) {
-        window.alert(String(e));
+        toast.error(String(e));
         return;
       }
 
@@ -1302,13 +1303,13 @@ export default function App() {
   ]);
 
   const workspaceSurface = (
-    <div className="relative h-full min-h-0">
+    <div id="workspace-surface" role="tabpanel" className="relative h-full min-h-0">
       <div
         className={cn(
           "absolute inset-0 px-3 pt-2 pb-2",
           !isTerminalTab && "invisible pointer-events-none",
         )}
-        aria-hidden={!isTerminalTab}
+        inert={!isTerminalTab ? true : undefined}
       >
         <TerminalStack
           tabs={tabs}
@@ -1325,7 +1326,7 @@ export default function App() {
           "absolute inset-0 px-3 pt-2 pb-2",
           !isEditorTab && "invisible pointer-events-none",
         )}
-        aria-hidden={!isEditorTab}
+        inert={!isEditorTab ? true : undefined}
       >
         <EditorStack
           tabs={tabs}
@@ -1340,7 +1341,7 @@ export default function App() {
           "absolute inset-0 px-3 pt-2 pb-2",
           !isPreviewTab && "invisible pointer-events-none",
         )}
-        aria-hidden={!isPreviewTab}
+        inert={!isPreviewTab ? true : undefined}
       >
         <PreviewStack
           tabs={tabs}
@@ -1354,7 +1355,7 @@ export default function App() {
           "absolute inset-0 px-3 pt-2 pb-2",
           !isMarkdownTab && "invisible pointer-events-none",
         )}
-        aria-hidden={!isMarkdownTab}
+        inert={!isMarkdownTab ? true : undefined}
       >
         <MarkdownStack tabs={tabs} activeId={activeId} />
       </div>
@@ -1363,7 +1364,7 @@ export default function App() {
           "absolute inset-0 px-3 pt-2 pb-2",
           !isAiDiffTab && "invisible pointer-events-none",
         )}
-        aria-hidden={!isAiDiffTab}
+        inert={!isAiDiffTab ? true : undefined}
       >
         <AiDiffStack
           tabs={tabs}
@@ -1377,7 +1378,7 @@ export default function App() {
           "absolute inset-0 px-3 pt-2 pb-2",
           !isGitDiffTab && "invisible pointer-events-none",
         )}
-        aria-hidden={!isGitDiffTab}
+        inert={!isGitDiffTab ? true : undefined}
       >
         <GitDiffStack tabs={tabs} activeId={activeId} />
       </div>
@@ -1386,7 +1387,7 @@ export default function App() {
           "absolute inset-0",
           !isGitHistoryTab && "invisible pointer-events-none",
         )}
-        aria-hidden={!isGitHistoryTab}
+        inert={!isGitHistoryTab ? true : undefined}
       >
         <GitHistoryStack
           tabs={tabs}
@@ -1400,7 +1401,8 @@ export default function App() {
 
   const shell = (
     <ThemeProvider>
-      <TooltipProvider>
+      <MotionConfig reducedMotion="user">
+      <TooltipProvider delayDuration={200} skipDelayDuration={400}>
         <div className="relative flex h-screen flex-col overflow-hidden bg-background text-foreground">
           <Header
             tabs={tabs}
@@ -1489,7 +1491,7 @@ export default function App() {
                       }}
                       transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
                       className="overflow-hidden"
-                      aria-hidden={!panelOpen}
+                      inert={!panelOpen ? true : undefined}
                     >
                       {hasComposer ? (
                         <AiInputBar />
@@ -1620,6 +1622,7 @@ export default function App() {
           </AlertDialog>
         </div>
       </TooltipProvider>
+      </MotionConfig>
     </ThemeProvider>
   );
 

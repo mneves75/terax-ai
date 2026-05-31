@@ -109,6 +109,7 @@ export function Header({
       className="size-7 shrink-0 rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
       onClick={onOpenSettings}
       title="Settings"
+      aria-label="Open settings"
     >
       <HugeiconsIcon icon={Settings01Icon} size={15} strokeWidth={1.75} />
     </Button>
@@ -126,6 +127,7 @@ export function Header({
         <Button
           onClick={onToggleSidebar}
           title="Toggle sidebar"
+          aria-label="Toggle sidebar"
           variant="ghost"
           size="icon-sm"
           className="shrink-0 rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
@@ -140,6 +142,7 @@ export function Header({
               size="icon-sm"
               className="shrink-0 rounded-md text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-50"
               title="Split terminal"
+              aria-label="Split terminal"
               disabled={!canSplit}
             >
               <HugeiconsIcon icon={GridViewIcon} size={16} strokeWidth={1.75} />

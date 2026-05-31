@@ -1,3 +1,4 @@
+import { isImeComposing } from "@/lib/keyboard";
 import { useLayoutEffect, useRef, useState } from "react";
 
 type Props = {
@@ -74,7 +75,7 @@ export function InlineInput({
       placeholder={placeholder}
       onChange={(e) => setValue(e.target.value)}
       onKeyDown={(e) => {
-        if (e.key === "Enter") {
+        if (e.key === "Enter" && !isImeComposing(e)) {
           e.preventDefault();
           commit();
         } else if (e.key === "Escape") {

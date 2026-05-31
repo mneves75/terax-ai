@@ -27,6 +27,7 @@ export type EntryRowProps = {
   isDir: boolean;
   isExpanded: boolean;
   depth: number;
+  treeItemId: string;
   rootPath: string;
   tree: Tree;
   isSelected: boolean;
@@ -49,6 +50,7 @@ function EntryRowImpl(props: EntryRowProps) {
     isDir,
     isExpanded,
     depth,
+    treeItemId,
     rootPath,
     tree,
     isSelected,
@@ -95,7 +97,14 @@ function EntryRowImpl(props: EntryRowProps) {
         ) : (
           <button
             type="button"
+            role="treeitem"
+            id={treeItemId}
+            tabIndex={-1}
             data-fs-path={path}
+            aria-label={isDir ? `${name} folder` : name}
+            aria-level={depth + 1}
+            aria-selected={isSelected}
+            aria-expanded={isDir ? isExpanded : undefined}
             onClick={handleClick}
             onDoubleClick={() => !isDir && tree.beginRename(path)}
             className={cn(

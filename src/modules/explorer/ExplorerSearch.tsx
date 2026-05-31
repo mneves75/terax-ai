@@ -1,5 +1,6 @@
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { isImeComposing } from "@/lib/keyboard";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -203,7 +204,7 @@ export const ExplorerSearch = forwardRef<ExplorerSearchHandle, Props>(function E
                   setSelectedIndex(
                     (prev) => (prev - 1 + results.length) % results.length,
                   );
-                } else if (e.key === "Enter") {
+                } else if (e.key === "Enter" && !isImeComposing(e)) {
                   e.preventDefault();
                   handleSelect(results[selectedIndex]);
                 }

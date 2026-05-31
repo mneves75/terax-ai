@@ -26,3 +26,6 @@ dist-ssr
 *.sw?
 
 *.tsbuildinfo
+
+# Claude Code local session state
+.claude/

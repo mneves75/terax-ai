@@ -89,15 +89,15 @@ export function SettingsApp() {
           value={active}
           onValueChange={(v) => setActive(v as SettingsTab)}
           orientation="horizontal"
-          className="flex-1 items-center"
+          className="min-w-0 flex-1 items-center"
           data-tauri-drag-region
         >
-          <TabsList className="mx-auto h-7 bg-muted/40 px-2">
+          <TabsList className="mx-auto h-7 max-w-full justify-start overflow-x-auto bg-muted/40 px-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {TABS.map((t) => (
               <TabsTrigger
                 key={t.id}
                 value={t.id}
-                className="h-6 gap-1.5 px-2.5 text-[11.5px]"
+                className="h-6 shrink-0 gap-1.5 px-2.5 text-[11.5px]"
               >
                 <HugeiconsIcon icon={t.icon} size={12} strokeWidth={1.75} />
                 <span>{t.label}</span>
@@ -108,7 +108,7 @@ export function SettingsApp() {
         {USE_CUSTOM_WINDOW_CONTROLS && <WindowControls closeOnly />}
       </header>
 
-      <main className="min-h-0 flex-1 overflow-y-auto px-8 pt-6 pb-7 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <main className="min-h-0 flex-1 overflow-y-auto px-4 pt-5 pb-7 [-ms-overflow-style:none] [scrollbar-width:none] sm:px-8 sm:pt-6 [&::-webkit-scrollbar]:hidden">
         <div className="mx-auto w-full max-w-160">
           {ActiveSection && <ActiveSection />}
         </div>

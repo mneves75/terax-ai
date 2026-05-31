@@ -1,59 +1,48 @@
-import { readFileSync } from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-
-/**
- * Source-level regression test for the preview iframe's security attributes.
- * Rendering this component for real requires jsdom + a working
- * useImperativeHandle stub; for a focused security check we just verify the
- * static JSX still carries the sandbox/referrerPolicy attributes — if a
- * future change silently removes them, this test fails.
- */
-
-const here = path.dirname(fileURLToPath(import.meta.url));
-const src = readFileSync(path.join(here, "PreviewPane.tsx"), "utf8");
-const iframeMatch = src.match(/<iframe[\s\S]*?\/>/);
-// Strip JSX comments (`// …` inside `{…}` and `{/* … */}` blocks) so the
-// assertions only see actual attribute syntax — the source explains in a
-// comment why `allow-top-navigation` is intentionally omitted, which we
-// don't want to match.
-const iframeJsx = (iframeMatch?.[0] ?? "")
-  .replace(/\/\*[\s\S]*?\*\//g, "")
-  .replace(/\/\/[^\n]*/g, "");
+import {
+  isLocalPreviewUrl,
+  previewAllowForUrl,
+  previewSandboxForUrl,
+} from "./PreviewPane";
 
 describe("PreviewPane iframe sandbox", () => {
-  it("declares an iframe in the source", () => {
-    expect(iframeJsx).not.toBe("");
+  it("keeps full dev-preview capability for loopback URLs", () => {
+    expect(isLocalPreviewUrl("http://localhost:5173")).toBe(true);
+    expect(isLocalPreviewUrl("http://127.0.0.1:3000")).toBe(true);
+    expect(isLocalPreviewUrl("http://[::1]:5173")).toBe(true);
+    expect(previewSandboxForUrl("http://localhost:5173")).toContain(
+      "allow-same-origin",
+    );
+    expect(previewSandboxForUrl("http://localhost:5173")).toContain(
+      "allow-downloads",
+    );
+    expect(previewAllowForUrl("http://localhost:5173")).toContain(
+      "clipboard-write",
+    );
   });
 
-  it("includes a sandbox attribute", () => {
-    expect(iframeJsx).toMatch(/sandbox="[^"]*"/);
+  it("does not grant local-only privileges to external URLs", () => {
+    expect(isLocalPreviewUrl("https://example.com")).toBe(false);
+    expect(previewSandboxForUrl("https://example.com")).not.toContain(
+      "allow-same-origin",
+    );
+    expect(previewSandboxForUrl("https://example.com")).not.toContain(
+      "allow-downloads",
+    );
+    expect(previewAllowForUrl("https://example.com")).toBe("fullscreen");
   });
 
-  it("grants allow-scripts and allow-same-origin", () => {
-    // These two are what makes a dev preview useful — strip either and dev
-    // servers stop working.
-    expect(iframeJsx).toMatch(/sandbox="[^"]*allow-scripts/);
-    expect(iframeJsx).toMatch(/sandbox="[^"]*allow-same-origin/);
-  });
-
-  it("does NOT include allow-top-navigation* tokens", () => {
-    // The whole point of sandboxing here: forbid the iframe from navigating
-    // the parent Tauri webview to an attacker origin (which would expose
-    // window.__TAURI__). Top-nav permissions must never be added.
-    expect(iframeJsx).not.toMatch(/allow-top-navigation/);
-  });
-
-  it("does NOT include allow-popups-without-allow-popups-to-escape-sandbox combo", () => {
-    // If popups are allowed, they MUST escape the sandbox cleanly — otherwise
-    // a popup window inherits sandbox flags and we get hard-to-debug behavior.
-    if (/allow-popups\b/.test(iframeJsx)) {
-      expect(iframeJsx).toMatch(/allow-popups-to-escape-sandbox/);
+  it("never allows iframe top navigation", () => {
+    for (const url of ["http://localhost:5173", "https://example.com"]) {
+      expect(previewSandboxForUrl(url)).not.toContain("allow-top-navigation");
     }
   });
 
-  it("sets referrerPolicy to no-referrer", () => {
-    expect(iframeJsx).toMatch(/referrerPolicy="no-referrer"/);
+  it("keeps popups escaped from the sandbox when popups are allowed", () => {
+    for (const url of ["http://localhost:5173", "https://example.com"]) {
+      const sandbox = previewSandboxForUrl(url);
+      expect(sandbox).toContain("allow-popups");
+      expect(sandbox).toContain("allow-popups-to-escape-sandbox");
+    }
   });
 });

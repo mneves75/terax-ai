@@ -6,6 +6,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { isImeComposing } from "@/lib/keyboard";
 import {
   ArrowReloadHorizontalIcon,
   Globe02Icon,
@@ -118,6 +119,7 @@ export const PreviewAddressBar = forwardRef<PreviewAddressBarHandle, Props>(
           size="icon"
           onClick={onReload}
           title="Reload"
+          aria-label="Reload preview"
           className="size-7 shrink-0 rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
         >
           <HugeiconsIcon
@@ -133,6 +135,7 @@ export const PreviewAddressBar = forwardRef<PreviewAddressBarHandle, Props>(
               variant="ghost"
               size="sm"
               title="Common dev-server ports"
+              aria-label="Common dev-server ports"
               className="h-7 shrink-0 gap-1 rounded-md px-1.5 text-[11px] text-muted-foreground hover:bg-accent hover:text-foreground"
             >
               <HugeiconsIcon
@@ -168,12 +171,13 @@ export const PreviewAddressBar = forwardRef<PreviewAddressBarHandle, Props>(
             ref={inputRef}
             value={draft}
             placeholder="http://localhost:3000"
+            aria-label="Preview URL"
             spellCheck={false}
             autoComplete="off"
             className="h-7 w-full bg-muted/60 px-2 text-xs placeholder:text-muted-foreground/70 focus-visible:ring-0"
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Enter") {
+              if (e.key === "Enter" && !isImeComposing(e)) {
                 e.preventDefault();
                 submit();
               } else if (e.key === "Escape") {
@@ -192,6 +196,7 @@ export const PreviewAddressBar = forwardRef<PreviewAddressBarHandle, Props>(
             if (url) void openUrl(url).catch(console.error);
           }}
           title="Open in system browser"
+          aria-label="Open preview in system browser"
           className="size-7 shrink-0 rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
           disabled={!url}
         >
@@ -203,12 +208,17 @@ export const PreviewAddressBar = forwardRef<PreviewAddressBarHandle, Props>(
         </Button>
       </div>
       {notice ? (
-        <div className="flex items-center gap-1.5 bg-amber-500/8 px-3 py-1 text-[11px] text-amber-600 dark:text-amber-400">
+        <div
+          className="flex items-center gap-1.5 bg-amber-500/8 px-3 py-1 text-[11px] text-amber-600 dark:text-amber-400"
+          role="status"
+          aria-live="polite"
+        >
           <span className="truncate">{notice}</span>
           <button
             type="button"
             onClick={() => setNotice(null)}
             className="ml-auto rounded px-1 text-[10px] opacity-80 hover:bg-accent hover:opacity-100"
+            aria-label="Dismiss preview notice"
           >
             Dismiss
           </button>
